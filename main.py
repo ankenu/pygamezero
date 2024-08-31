@@ -1,182 +1,296 @@
 import pgzrun
 from pgzero.builtins import *
-import random
 
 
 WIDTH = 1024
 HEIGHT = 512
 TITLE = "Игра"
-FPS = 60
+FPS = 20
 
 btn_size = 128
 btn_space = 56
+
 start_btn = Actor('start-btn', (WIDTH/2 - (btn_size + btn_space), HEIGHT/2))
 sound_btn = Actor('soundon-btn', (WIDTH/2, HEIGHT/2))
 exit_btn = Actor('exit-btn', (WIDTH/2 + btn_size + btn_space, HEIGHT/2))
 
-foreground_1 = Actor("foreground_1")
-foreground_2 = Actor("foreground_2")
-foreground_3 = Actor("foreground_3")
-foreground_4 = Actor("foreground_4")
-foreground_5 = Actor("foreground_5")
-foreground_6 = Actor("foreground_6")
-foreground_7 = Actor("foreground_7")
-foreground_8 = Actor("foreground_8", (WIDTH/2+WIDTH, HEIGHT/2+10))
-foreground_9 = Actor("foreground_9", (WIDTH/2+WIDTH, HEIGHT/2+10))
-foreground_10 = Actor("foreground_10", (WIDTH/2+WIDTH, HEIGHT/2+10))
-foreground_11 = Actor("foreground_11", (WIDTH/2+WIDTH, HEIGHT/2+10))
-foreground_12 = Actor("foreground_12", (WIDTH/2+WIDTH, HEIGHT/2+10))
-foreground_13 = Actor("foreground_13", (WIDTH/2+WIDTH, HEIGHT/2+10))
-foreground_14 = Actor("foreground_14", (WIDTH/2+WIDTH, HEIGHT/2+10))
-foreground_15 = Actor("foreground_15", (WIDTH/2+WIDTH, HEIGHT/2+10))
+tiles = ['empty', 'block']
+tile_size = 64
 
-character = Actor("run_right_1", (WIDTH/2, HEIGHT - 64))
-bunny = Actor("bunny_stay_1", (WIDTH, HEIGHT - 64))
-chicken = Actor("chicken_stay_1", (WIDTH + WIDTH/2, HEIGHT - 64))
+class Item:
+    def __init__(self, img, pos, state = "stay"):
+        self.state = state
+        self.frame = 1
+        self.actor = Actor(img, pos)
+
+    def animate(self, state, limit):
+        self.state = state
+        if self.frame < limit:
+            self.frame += 1
+        else:
+            self.frame = 1
+        self.actor.image = f"{self.state}_{self.frame}"
+
+class Player(Item):
+    def __init__(self, img = "stay_1", pos =  (32, HEIGHT - 96 - 64*2), step = 4, jump_length = 192, state = 'stay'):
+        super().__init__(img, pos, state)
+        self.step = step
+        self.jump_length = jump_length
+        self.jump_start_pos = (0, 0)
+        self.oranges = 0
+
+    def stay(self):
+        self.animate('stay', 11)
+
+    def run_left(self):
+        self.animate('run_left', 12)
+
+    def run_right(self):
+        self.animate('run_right', 12)
+    
+    def jump(self):
+        self.animate('jump', 1)
+    
+    def jump_left(self):
+        self.animate('jump_left', 6)
+    
+    def jump_right(self):
+        self.animate('jump_right', 6)
+
+    def fall(self):
+        self.animate('fall', 1)
+
+    def fall_right(self):
+        self.animate('fall_right', 1)
+    
+    def fall_left(self):
+        self.animate('fall_left', 1)
+    
+    def is_on_block():
+        None
 
 mode = "start"
 is_playing_music = True
-game_amount = 0
+player = None
+tile_map = []
+tile_map_x = 0
 
 def start():
-    global mode, game_amount
-    mode = "start"
-    game_amount += 1
-
-    character.frame = 1
-    character.state = "run_right"
-    character.jump_length = 200
-    character.step = 6
-    character.collision_max = 4
-    character.collision_current = 0
-    character.score = 0
-
-    bunny.frame = 1
-    bunny.state = "bunny_stay"
-    bunny.passed = False
-    bunny.pos = (WIDTH, HEIGHT - 64)
-
-    chicken.frame = 1
-    chicken.state = "chicken_stay"
-    chicken.passed = False
-    chicken.pos = (WIDTH + WIDTH/2, HEIGHT - 64)
+    global tile_map, tile_map_x, player
+    tile_map = [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '.', 0, 0, 'c', 0, 'c', 0, 'c', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '.', 0, 0, 'b', 0, 0, 0, '.', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '.', '.', '.', '.', 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '.', '.', '.', '.', '.', '.', '.', '.', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '.', '.', '.', '.', '.', 0, 'b', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, '.', 0, 0, 'c', 0, 0, '.', 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1], [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    tile_map_x = 0
+    player = Player()
 
 def draw():
     global game_amount
+
+    screen.clear()
     screen.fill((216, 171, 189))
+    
     if mode == "start":
-        if game_amount > 1:
-            screen.draw.text(
-                "Game over",
-                color='red',
-                midtop=(WIDTH // 2, 10),
-                fontsize=200
-            )
+        start_btn.draw()
+        sound_btn.draw()
+        exit_btn.draw()
+    elif mode == "fail":
+        screen.draw.text(
+            "FAIL",
+            color='red',
+            midtop=(WIDTH // 2, 10),
+            fontsize=200
+        )
+        start_btn.draw()
+        sound_btn.draw()
+        exit_btn.draw()
+    elif mode == "win":
+        screen.draw.text(
+            "VICTORY",
+            color='green',
+            midtop=(WIDTH // 2, 10),
+            fontsize=200
+        )
         start_btn.draw()
         sound_btn.draw()
         exit_btn.draw()
     elif mode == "game":
-        foreground_1.draw()
-        foreground_2.draw()
-        foreground_3.draw()
-        foreground_4.draw()
-        foreground_5.draw()
-        foreground_6.draw()
-        foreground_7.draw()
+        for row in range(len(tile_map)):
+            for column in range(len(tile_map[row])):
+                x = column * tile_size - tile_map_x
+                y = row * tile_size
+                screen.blit('empty', (x, y))
 
         screen.draw.text(
-            str(character.score),
+            str(player.oranges),
             color='white',
             midtop=(WIDTH // 2, 10),
-            fontsize=340
+            fontsize=500
         )
 
-        foreground_8.draw()
-        foreground_9.draw()
-        foreground_10.draw()
-        foreground_11.draw()
-        foreground_12.draw()
-        foreground_13.draw()
-        foreground_14.draw()
-        foreground_15.draw()
+        for row in range(len(tile_map)):
+            for column in range(len(tile_map[row])):
+                x = column * tile_size - tile_map_x
+                y = row * tile_size
+                if isinstance(tile_map[row][column], str):
+                    if tile_map[row][column] == ".":
+                        tile_map[row][column] = Item("orange_1", (x, y), "orange")
+                    elif tile_map[row][column] == "b":
+                        tile_map[row][column] = Item("bunny_stay_1", (x, y), "bunny_stay")
+                    elif tile_map[row][column] == "c":
+                        tile_map[row][column] = Item("chicken_stay_1", (x, y), "chicken_stay")
+                    tile_map[row][column].actor.topleft = (x, y)
+                    tile_map[row][column].actor.draw()
+                elif isinstance(tile_map[row][column], Item):
+                    tile_map[row][column].actor.draw()
+                    tile_map[row][column].actor.topleft = (x, y)
+                    if tile_map[row][column].state == "orange":
+                        tile_map[row][column].animate("orange", 17)
+                    elif tile_map[row][column].state == "bunny_stay":
+                        tile_map[row][column].animate("bunny_stay", 8)
+                    elif tile_map[row][column].state == "chicken_stay":
+                        tile_map[row][column].animate("chicken_stay", 13)
+                else:
+                    tile = tiles[tile_map[row][column]]
+                    if tile != "empty":
+                        screen.blit(tile, (x, y))
+        player.actor.draw()
 
-        if foreground_8.x > -(WIDTH/2 + WIDTH):
-            foreground_8.x -= 0.5
-        else:
-            foreground_8.x = WIDTH + WIDTH/2
-            
-        if foreground_11.x > -(WIDTH/2 + WIDTH):
-            foreground_11.x -= 1.2
-        else:
-            foreground_11.x = WIDTH + WIDTH/2
-            
-        if foreground_12.x > -(WIDTH/2 + WIDTH):
-            foreground_12.x -= 2
-        else:
-            foreground_12.x = WIDTH + WIDTH/2
-            
-        if foreground_13.x > -(WIDTH/2 + WIDTH):
-            foreground_13.x -= character.step
-        else:
-            foreground_13.x = WIDTH + WIDTH/2
-        
-        if bunny.x > -(WIDTH/2 + WIDTH):
-            bunny.x -= character.step
-        else:
-            bunny.passed = False
-            bunny.x = WIDTH + WIDTH/2 + random.randint(0, WIDTH//2)
-        
-        if chicken.x > -(WIDTH/2 + WIDTH):
-            chicken.x -= character.step
-        else:
-            chicken.passed = False
-            chicken.x = WIDTH + random.randint(WIDTH//2, WIDTH) + 150
+def get_tile(pos):
+    global mode
 
-        if bunny.x < WIDTH/2 - 70 and bunny.passed == False:
-            bunny.passed = True
-            character.score += 1
-            character.step += 0.25
-            sounds.coin.play()
-        elif chicken.x < WIDTH/2 - 70 and chicken.passed == False:
-            chicken.passed = True
-            character.score += 1
-            character.step += 0.25
-            sounds.coin.play()
-
-        character.draw()
-        bunny.draw()
-        chicken.draw()
-    
-def update_character(actor):
-    if actor.state == "run_right" and actor.frame < 12 or actor.state == "jump" and actor.frame < 6 or actor.state == "bunny_stay" and actor.frame < 8 or actor.state == "chicken_stay" and actor.frame < 13:
-        actor.frame += 1
-    else:
-        actor.frame = 1
-    actor.image = f"{actor.state}_{actor.frame}"
+    x, y = pos
+    row = int(y / tile_size)
+    column = int((x + tile_map_x) / tile_size)
+    if column < len(tile_map[0]) and row < len(tile_map):
+        if isinstance(tile_map[row][column], int):
+            return tiles[tile_map[row][column]]
+        elif isinstance(tile_map[row][column], str):
+            # ВРЕМЕННО
+            return "empty"
+        elif tile_map[row][column].state == "orange":
+            if is_playing_music:
+                sounds.coin.play()
+            player.oranges += 1
+            tile_map[row][column] = 0
+            return "empty"
+        elif tile_map[row][column].state == "bunny_stay" or tile_map[row][column].state == "chicken_stay":
+            sounds.over.play()
+            mode = "fail"
+    return None
 
 def update(dt):
-    global mode
-    if mode == "start":
-        None
-    elif mode == "game":
-        update_character(character)
-        update_character(bunny)
-        update_character(chicken)
+    global mode, tile_map_x
 
-        if character.colliderect(bunny) or character.colliderect(chicken):
-            if character.collision_current > character.collision_max:
+    if mode == "game":
+        x, y = player.actor.pos
+        
+        if player.state == "jump" or player.state == "jump_left" or player.state == "jump_right":
+            tile = get_tile(player.actor.midtop)
+            if tile == "empty":
+                _, y_start_pos = player.jump_start_pos
+                if y_start_pos - y < player.jump_length:
+                    y -= player.step * 2
+                elif player.state == "jump_right":
+                    player.fall_right()
+                elif player.state == "jump_left":
+                    player.fall_left()
+                else:
+                    player.fall()
+            elif tile == "block":
+                player.fall()
+
+        if player.state == "fall" or player.state == "fall_right" or player.state == "fall_left":
+            # Falling to a block or an empty tile
+            tile = get_tile(player.actor.midbottom)
+            tile_side = get_tile(player.actor.bottomright) if player.state == "fall_right" else get_tile(player.actor.bottomleft)
+            if (player.state == "fall_right" or player.state == "fall_left") and tile_side == "empty" or player.state == "fall" and tile == "empty":
+                if player.state == "fall_right":
+                    x += player.step
+                    player.fall_right()
+                elif player.state == "fall_left":
+                    x -= player.step
+                    player.fall_left() 
+                elif player.state == "fall":
+                    player.fall()
+                y += player.step * 2
+            elif (player.state == "fall_right" or player.state == "fall_left") and tile_side == "block" or tile == "block":
+                player.stay()
+        elif keyboard.D or keyboard.RIGHT or player.state == "jump_right" or (keyboard.D or keyboard.RIGHT) and (player.state == "jump" or player.state == "fall"):
+            # Right tile check
+            tile = get_tile(player.actor.midright)
+            if tile == "empty":
+                x += player.step
+
+                if player.state == "jump_right":
+                    player.jump_right()
+                elif player.state == "jump" or player.state == "fall":
+                    player.fall_right()
+                elif keyboard.SPACE:
+                    player.jump_start_pos = player.actor.pos
+                    player.jump_right()
+                else:
+                    player.run_right()
+            elif tile == "block":
+                player.stay()
+
+            # Bottom tile check
+            tile = get_tile(player.actor.midbottom)
+            if tile == "empty" and player.state != "jump_right" and player.state != "fall_right":
+                player.fall()
+                y += player.step * 2
+            elif tile == "block" and player.state == "fall":
+                player.run_right()
+        elif keyboard.A or keyboard.LEFT or player.state == "jump_left" or (keyboard.A or keyboard.LEFT) and (player.state == "jump" or player.state == "fall"):
+            # Left tile check
+            tile = get_tile(player.actor.midleft)
+            if tile == "empty":
+                x -= player.step
+
+                if player.state == "jump_left":
+                    player.jump_left()
+                elif player.state == "jump" or player.state == "fall":
+                    player.fall_left()
+                elif keyboard.SPACE:
+                    player.jump_start_pos = player.actor.pos
+                    player.jump_left()
+                else:
+                    player.run_left()
+            elif tile == "block":
+                player.stay()
+
+            # Bottom tile check
+            tile = get_tile(player.actor.midbottom)
+            if tile == "empty" and player.state != "jump_left" and player.state != "fall_left":
+                player.fall()
+                y += player.step * player.step / 2
+            elif tile == "block" and player.state == "fall":
+                player.run_left()
+        elif player.state == "jump":
+            player.jump()
+        elif keyboard.SPACE:
+            player.jump_start_pos = player.actor.pos
+            player.jump()
+        elif player.state != "fall" and player.state != "fall_right" and player.state != "fall_left":
+            player.stay()
+        
+        if x > tile_size / 4 and x < WIDTH:
+            if y >= HEIGHT:
                 sounds.over.play()
-                start()
+                mode = "fail"
+            if (x >= WIDTH / 2 or tile_map_x > 0) and tile_map_x < tile_size * len(tile_map[0]) - WIDTH:
+                tile_map_x += x - player.actor.pos[0]
+                player.actor.pos = (player.actor.pos[0], y)
+            elif x > WIDTH - tile_size:
+                mode = "win"
             else:
-                character.collision_current += 1
-        else:
-            character.collision_current = 0
+                player.actor.pos = (x, y)
+        elif player.state != "run_right" and player.state != "run_left":
+            player.fall()
     
             
 def on_mouse_down(pos, button):
     global mode, is_playing_music
-    if mode == "start":
+    if mode == "start" or mode == "win" or mode == "fail":
         if button == mouse.LEFT and start_btn.collidepoint(pos):
+            start()
             mode = "game"
         elif button == mouse.LEFT and sound_btn.collidepoint(pos) and sound_btn.image == "soundon-btn":
             music.pause()
@@ -188,22 +302,6 @@ def on_mouse_down(pos, button):
             sound_btn.image = "soundon-btn"
         elif button == mouse.LEFT and exit_btn.collidepoint(pos):
             exit()
-
-def jump_end():
-    character.state = character.previous_state
-
-def jump_start_end():
-    animate(character, duration=0.325, pos=(character.pos[0], character.pos[1] + character.jump_length), on_finished=jump_end)
-
-def on_key_down(key, mod, unicode):
-    global mode, is_playing_music
-    if mode == "game":
-        if key == keys.SPACE and character.state != "jump":
-            character.previous_state = character.state
-            character.state = "jump"
-            if is_playing_music:
-                sounds.jump.play()
-            animate(character, duration=0.325, pos=(character.pos[0], character.pos[1] - character.jump_length), on_finished=jump_start_end)
 
 music.play("time_for_adventure.mp3")
 start()
